@@ -21,7 +21,7 @@ BufferType interp1_crop_buffer(BufferType buffer, int samplesAvailable, SeqType 
 }
 
 template <int interpolationOrder, typename AlignmentType, typename PositionType>
-std::tuple<AlignmentType, PositionType> interp_avoid_out_of_bounds_reads(AlignmentType alignment, PositionType readPos, const PositionType readInc, int sourceLength) noexcept
+std::tuple<AlignmentType, PositionType> interp_avoid_out_of_bounds_reads(AlignmentType alignment, PositionType readPos, const PositionType readInc, int sourceLength, int direction) noexcept
 {
     int prepad;
     int postpad;
@@ -37,9 +37,37 @@ std::tuple<AlignmentType, PositionType> interp_avoid_out_of_bounds_reads(Alignme
     }
 
     int startReadIndex = static_cast<int> (readPos);
-    int sourceLengthNeeded = static_cast<int> (readPos + alignment.remaining * readInc) + postpad;
+    if (direction == 0) {
+        int sourceLengthNeeded = static_cast<int> (readPos - alignment.remaining * readInc) + postpad;
 
-    if (sourceLength < sourceLengthNeeded)
+        if (sourceLengthNeeded < prepad)
+        {
+            const int delta = sourceLengthNeeded * -1;
+            alignment.remaining -= delta;
+        }
+        if (startReadIndex > sourceLength)
+        {
+            readPos = sourceLength - prepad;
+            alignment.remaining -= prepad;
+            alignment.offset += prepad;
+        }
+    }
+    else {
+        int sourceLengthNeeded = static_cast<int> (readPos + alignment.remaining * readInc) + postpad;
+
+        if (sourceLength < sourceLengthNeeded)
+        {
+            const int delta = sourceLengthNeeded - sourceLength;
+            alignment.remaining -= delta;
+        }
+        if (startReadIndex < prepad)
+        {
+            readPos = prepad;
+            alignment.remaining -= prepad;
+            alignment.offset += prepad;
+        }
+    }
+    /*if (sourceLength < sourceLengthNeeded)
     {
         const int delta = sourceLengthNeeded - sourceLength;
         alignment.remaining -= delta;
@@ -49,7 +77,7 @@ std::tuple<AlignmentType, PositionType> interp_avoid_out_of_bounds_reads(Alignme
         readPos = prepad;
         alignment.remaining -= prepad;
         alignment.offset += prepad;
-    }
+    }*/
 
     return std::make_tuple(std::move(alignment), std::move(readPos));
 }
